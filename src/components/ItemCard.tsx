@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Tag, User, TrendingUp, Crown, Sparkles } from 'lucide-react';
 import { ItemWithBidder } from '@/lib/database.types';
+import { useTheme } from '@/lib/ThemeContext';
 import BidModal from './BidModal';
 
 interface ItemCardProps {
@@ -14,23 +15,14 @@ interface ItemCardProps {
   bidderId?: string;
 }
 
-// Rotating gradient colors for cards
-const cardGradients = [
-  'from-indigo-500 to-purple-500',
-  'from-purple-500 to-pink-500',
-  'from-pink-500 to-rose-500',
-  'from-teal-500 to-cyan-500',
-  'from-orange-500 to-amber-500',
-  'from-emerald-500 to-teal-500',
-];
-
 export default function ItemCard({ item, index, onBidPlaced, bidderId }: ItemCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const { theme } = useTheme();
 
   const isLeading = bidderId && item.current_bidder_id === bidderId;
   const hasImage = item.image_url && item.image_url.length > 0;
-  const gradientClass = cardGradients[index % cardGradients.length];
+  const gradientClass = theme.cardGradients[index % theme.cardGradients.length];
 
   return (
     <>
@@ -127,7 +119,8 @@ export default function ItemCard({ item, index, onBidPlaced, bidderId }: ItemCar
             )}
             
             {item.current_bidder && (
-              <div className="flex items-center gap-1.5 text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+              <div className="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-full"
+                   style={{ backgroundColor: `${theme.primary}15`, color: theme.primary }}>
                 <User className="w-3 h-3" />
                 <span className="text-xs font-medium max-w-[80px] truncate">
                   {item.current_bidder.name.split(' ')[0]}
@@ -140,7 +133,11 @@ export default function ItemCard({ item, index, onBidPlaced, bidderId }: ItemCar
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            className="btn-primary w-full flex items-center justify-center gap-2"
+            className="w-full flex items-center justify-center gap-2 font-semibold py-3 px-6 rounded-xl text-white transition-all shadow-lg"
+            style={{ 
+              background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+              boxShadow: `0 4px 15px ${theme.primary}40`
+            }}
             onClick={(e) => {
               e.stopPropagation();
               setIsModalOpen(true);

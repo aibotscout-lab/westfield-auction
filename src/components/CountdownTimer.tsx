@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Clock, Flame } from 'lucide-react';
+import { useTheme } from '@/lib/ThemeContext';
 
 interface CountdownTimerProps {
   endTime: Date;
@@ -18,6 +19,7 @@ interface TimeLeft {
 export default function CountdownTimer({ endTime, onEnd }: CountdownTimerProps) {
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({ hours: 0, minutes: 0, seconds: 0 });
   const [isUrgent, setIsUrgent] = useState(false);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -47,24 +49,19 @@ export default function CountdownTimer({ endTime, onEnd }: CountdownTimerProps) 
 
   const TimeBlock = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">
-      <AnimatePresence mode="popLayout">
-        <motion.div
-          key={value}
-          initial={{ y: -20, opacity: 0, scale: 0.8 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: 20, opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.2, type: "spring" }}
-          className={`
-            w-14 h-14 rounded-xl flex items-center justify-center font-heading text-2xl font-bold
-            ${isUrgent 
-              ? 'bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/30' 
-              : 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30'
-            }
-          `}
-        >
-          {String(value).padStart(2, '0')}
-        </motion.div>
-      </AnimatePresence>
+      <div
+        className="w-14 h-14 rounded-xl flex items-center justify-center font-heading text-2xl font-bold text-white shadow-lg transition-colors duration-500"
+        style={{
+          background: isUrgent 
+            ? 'linear-gradient(135deg, #EF4444 0%, #F97316 100%)'
+            : `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+          boxShadow: isUrgent 
+            ? '0 4px 15px rgba(239, 68, 68, 0.4)'
+            : `0 4px 15px ${theme.primary}40`
+        }}
+      >
+        <span className="tabular-nums">{String(value).padStart(2, '0')}</span>
+      </div>
       <span className="text-xs text-gray-500 mt-1.5 font-semibold tracking-wide">{label}</span>
     </div>
   );
@@ -84,13 +81,13 @@ export default function CountdownTimer({ endTime, onEnd }: CountdownTimerProps) 
           <Flame className="w-5 h-5 text-orange-500" />
         </motion.div>
       ) : (
-        <Clock className="w-5 h-5 text-indigo-500" />
+        <Clock className="w-5 h-5" style={{ color: theme.primary }} />
       )}
       <div className="flex items-center gap-1">
         <TimeBlock value={timeLeft.hours} label="HRS" />
-        <span className="text-indigo-400 font-bold text-xl mb-5">:</span>
+        <span className="font-bold text-xl mb-5" style={{ color: `${theme.primary}80` }}>:</span>
         <TimeBlock value={timeLeft.minutes} label="MIN" />
-        <span className="text-indigo-400 font-bold text-xl mb-5">:</span>
+        <span className="font-bold text-xl mb-5" style={{ color: `${theme.primary}80` }}>:</span>
         <TimeBlock value={timeLeft.seconds} label="SEC" />
       </div>
     </motion.div>

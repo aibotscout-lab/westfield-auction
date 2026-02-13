@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Gavel, Sparkles } from 'lucide-react';
+import { useTheme } from '@/lib/ThemeContext';
 import CountdownTimer from './CountdownTimer';
 
 interface HeaderProps {
@@ -10,6 +11,8 @@ interface HeaderProps {
 }
 
 export default function Header({ endTime, isActive }: HeaderProps) {
+  const { theme } = useTheme();
+
   return (
     <motion.header 
       initial={{ opacity: 0, y: -20 }}
@@ -26,7 +29,12 @@ export default function Header({ endTime, isActive }: HeaderProps) {
               whileHover={{ scale: 1.05, rotate: -5 }}
               whileTap={{ scale: 0.95 }}
             >
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+              <div 
+                className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{ 
+                  background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientMid} 50%, ${theme.gradientEnd} 100%)`
+                }}
+              >
                 <Gavel className="w-7 h-7 text-white" />
               </div>
               <motion.div
@@ -38,10 +46,18 @@ export default function Header({ endTime, isActive }: HeaderProps) {
               </motion.div>
             </motion.div>
             <div>
-              <h1 className="font-heading text-xl font-bold gradient-text">
+              <h1 
+                className="font-heading text-xl font-bold"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientMid} 50%, ${theme.gradientEnd} 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
                 Westfield 1st Ward
               </h1>
-              <p className="text-sm text-gray-600 font-medium">Silent Auction ✨</p>
+              <p className="text-sm text-gray-600 font-medium">Silent Auction {theme.emoji}</p>
             </div>
           </div>
 

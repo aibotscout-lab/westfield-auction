@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Mail, Phone, ArrowRight, Sparkles, PartyPopper } from 'lucide-react';
+import { useTheme } from '@/lib/ThemeContext';
 import { supabase } from '@/lib/supabase';
 
 interface RegistrationFormProps {
@@ -17,6 +18,7 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { theme } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +95,13 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
             className="relative inline-block mb-6"
           >
-            <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/30 mx-auto">
+            <div 
+              className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl mx-auto"
+              style={{ 
+                background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientMid} 50%, ${theme.gradientEnd} 100%)`,
+                boxShadow: `0 20px 40px ${theme.primary}40`
+              }}
+            >
               <PartyPopper className="w-12 h-12 text-white" />
             </div>
             <motion.div
@@ -119,7 +127,7 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
             transition={{ delay: 0.4 }}
             className="text-white/80 text-lg"
           >
-            Enter your info to start bidding 🎉
+            Enter your info to start bidding {theme.emoji}
           </motion.p>
         </div>
 
@@ -139,10 +147,15 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
                 transition={{ delay: 0.6 + index * 0.1 }}
               >
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {field.label}
+                  {field.label} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center group-focus-within:scale-110 transition-transform">
+                  <div 
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center group-focus-within:scale-110 transition-transform"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`
+                    }}
+                  >
                     <field.icon className="w-5 h-5 text-white" />
                   </div>
                   <input
@@ -150,7 +163,10 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
                     value={formData[field.name as keyof typeof formData]}
                     onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
                     placeholder={field.placeholder}
-                    className="input pl-[4.5rem] py-4 text-lg"
+                    className="input pl-20 py-4 text-lg"
+                    style={{ 
+                      '--tw-ring-color': `${theme.primary}30`,
+                    } as React.CSSProperties}
                     required
                   />
                 </div>
@@ -175,7 +191,11 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.9 }}
-              className="btn-primary w-full flex items-center justify-center gap-3 text-lg py-4 mt-6"
+              className="w-full flex items-center justify-center gap-3 text-lg py-4 mt-6 text-white font-semibold rounded-xl transition-all"
+              style={{ 
+                background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                boxShadow: `0 4px 20px ${theme.primary}50`
+              }}
             >
               {isSubmitting ? (
                 <motion.div

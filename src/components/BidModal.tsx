@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, TrendingUp, Check, AlertCircle, Sparkles, Zap } from 'lucide-react';
 import { ItemWithBidder } from '@/lib/database.types';
+import { useTheme } from '@/lib/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import Confetti from './Confetti';
 
@@ -20,6 +21,7 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const { theme } = useTheme();
 
   const minBid = item.current_bid + 1;
 
@@ -32,10 +34,10 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
   }, [isOpen, minBid]);
 
   const quickBids = [
-    { label: `+$1`, amount: item.current_bid + 1, color: 'from-indigo-500 to-indigo-600' },
-    { label: `+$5`, amount: item.current_bid + 5, color: 'from-purple-500 to-purple-600' },
-    { label: `+$10`, amount: item.current_bid + 10, color: 'from-pink-500 to-pink-600' },
-    { label: `+$25`, amount: item.current_bid + 25, color: 'from-orange-500 to-orange-600' },
+    { label: `+$1`, amount: item.current_bid + 1 },
+    { label: `+$5`, amount: item.current_bid + 5 },
+    { label: `+$10`, amount: item.current_bid + 10 },
+    { label: `+$25`, amount: item.current_bid + 25 },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,7 +125,12 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
             {showConfetti && <Confetti />}
 
             {/* Gradient header bar */}
-            <div className="h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+            <div 
+              className="h-2"
+              style={{ 
+                background: `linear-gradient(90deg, ${theme.gradientStart} 0%, ${theme.gradientMid} 50%, ${theme.gradientEnd} 100%)`
+              }}
+            />
 
             {/* Header */}
             <div className="relative p-6 pb-4">
@@ -139,7 +146,15 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
               </h2>
               <div className="flex items-center gap-2 mt-2">
                 <span className="text-gray-500">Current bid:</span>
-                <span className="font-heading text-2xl font-bold gradient-text">
+                <span 
+                  className="font-heading text-2xl font-bold"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
                   ${item.current_bid}
                 </span>
                 {item.current_bidder && (
@@ -162,7 +177,11 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                     initial={{ scale: 0, rotate: -180 }}
                     animate={{ scale: 1, rotate: 0 }}
                     transition={{ delay: 0.1, type: "spring" }}
-                    className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/30"
+                    className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg"
+                    style={{ 
+                      background: 'linear-gradient(135deg, #10B981 0%, #14B8A6 100%)',
+                      boxShadow: '0 10px 30px rgba(16, 185, 129, 0.4)'
+                    }}
                   >
                     <Check className="w-12 h-12 text-white" strokeWidth={3} />
                   </motion.div>
@@ -180,39 +199,55 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                     transition={{ delay: 0.3 }}
                     className="text-gray-600"
                   >
-                    Bid placed at <span className="font-bold gradient-text text-xl">${bidAmount}</span>
+                    Bid placed at{' '}
+                    <span 
+                      className="font-bold text-xl"
+                      style={{ color: theme.primary }}
+                    >
+                      ${bidAmount}
+                    </span>
                   </motion.p>
                 </motion.div>
               ) : (
                 <>
                   {/* Quick bid buttons */}
                   <div className="grid grid-cols-4 gap-2 mb-5">
-                    {quickBids.map((qb, index) => (
-                      <motion.button
-                        key={qb.amount}
-                        type="button"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setBidAmount(qb.amount.toString())}
-                        className={`
-                          py-3 px-2 rounded-xl text-sm font-bold transition-all shadow-md
-                          ${bidAmount === qb.amount.toString()
-                            ? `bg-gradient-to-br ${qb.color} text-white shadow-lg scale-105`
-                            : 'bg-white text-gray-700 hover:shadow-lg border border-gray-100'
-                          }
-                        `}
-                      >
-                        {qb.label}
-                      </motion.button>
-                    ))}
+                    {quickBids.map((qb, index) => {
+                      const isSelected = bidAmount === qb.amount.toString();
+                      return (
+                        <motion.button
+                          key={qb.amount}
+                          type="button"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setBidAmount(qb.amount.toString())}
+                          className="py-3 px-2 rounded-xl text-sm font-bold transition-all shadow-md"
+                          style={{
+                            background: isSelected 
+                              ? `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`
+                              : 'white',
+                            color: isSelected ? 'white' : '#374151',
+                            boxShadow: isSelected ? `0 4px 15px ${theme.primary}40` : undefined,
+                            border: isSelected ? 'none' : '1px solid #F3F4F6',
+                          }}
+                        >
+                          {qb.label}
+                        </motion.button>
+                      );
+                    })}
                   </div>
 
                   {/* Custom amount input */}
                   <div className="relative mb-4">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
+                    <div 
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ 
+                        background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`
+                      }}
+                    >
                       <span className="text-white font-bold text-lg">$</span>
                     </div>
                     <input
@@ -247,7 +282,11 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                     disabled={isSubmitting}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="btn-primary w-full flex items-center justify-center gap-3 text-lg py-4"
+                    className="w-full flex items-center justify-center gap-3 text-lg py-4 text-white font-semibold rounded-xl transition-all"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                      boxShadow: `0 4px 20px ${theme.primary}50`
+                    }}
                   >
                     {isSubmitting ? (
                       <motion.div
