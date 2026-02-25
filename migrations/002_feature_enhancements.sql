@@ -24,3 +24,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.bids;
 
 -- Index for wave queries
 CREATE INDEX IF NOT EXISTS idx_items_wave ON public.items(auction_wave);
+
+-- OTP codes table for phone-based login
+CREATE TABLE IF NOT EXISTS public.otp_codes (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  phone text NOT NULL,
+  code text NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  used boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_otp_phone ON public.otp_codes(phone);
+CREATE POLICY "Allow all otp operations" ON public.otp_codes FOR ALL USING (true) WITH CHECK (true);
+ALTER TABLE public.otp_codes ENABLE ROW LEVEL SECURITY;

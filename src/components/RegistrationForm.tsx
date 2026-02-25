@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { User, Mail, Phone, ArrowRight, Sparkles, PartyPopper, Eye, EyeOff, Globe } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, Phone, ArrowRight, Sparkles, PartyPopper, EyeOff, Eye, Globe, MessageSquare, Check } from 'lucide-react';
 import { useTheme } from '@/lib/ThemeContext';
 import { supabase } from '@/lib/supabase';
 
@@ -10,18 +10,17 @@ interface RegistrationFormProps {
   onComplete: (bidderId: string) => void;
 }
 
+type Step = 'phone' | 'otp' | 'name';
+
 export default function RegistrationForm({ onComplete }: RegistrationFormProps) {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    is_anonymous: false,
-  });
+  const [step, setStep] = useState<Step>('phone');
+  const [phone, setPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [name, setName] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [returningEmail, setReturningEmail] = useState('');
-  const [showReturning, setShowReturning] = useState(false);
-  const [lookingUp, setLookingUp] = useState(false);
+  const [existingBidderId, setExistingBidderId] = useState<string | null>(null);
   const { theme } = useTheme();
 
   const formatPhone = (value: string) => {
@@ -31,40 +30,85 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1: Send OTP
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!formData.name || !formData.email || !formData.phone) {
-      setError('Please fill in all fields');
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setError('Please enter a valid 10-digit phone number');
       return;
     }
-
     setIsSubmitting(true);
-
     try {
-      // Check if bidder already exists
-      const { data: existingBidder } = await supabase
-        .from('bidders')
-        .select('id, name')
-        .eq('email', formData.email)
-        .single();
+      const res = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send code');
+      setStep('otp');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send code');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-      if (existingBidder) {
-        localStorage.setItem('bidder_id', existingBidder.id);
-        localStorage.setItem('bidder_name', existingBidder.name);
-        onComplete(existingBidder.id);
-        return;
+  // Step 2: Verify OTP
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (otpCode.length !== 6) {
+      setError('Enter the 6-digit code we sent you');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code: otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invalid code');
+
+      if (data.existingBidder) {
+        // Returning bidder — log them straight in
+        localStorage.setItem('bidder_id', data.existingBidder.id);
+        localStorage.setItem('bidder_name', data.existingBidder.name);
+        onComplete(data.existingBidder.id);
+      } else {
+        // New bidder — need name
+        setStep('name');
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid code');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-      // Create new bidder
+  // Step 3: Complete registration
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!name.trim()) {
+      setError('Please enter your name');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const digits = phone.replace(/\D/g, '');
+      const e164 = digits.startsWith('1') ? `+${digits}` : `+1${digits}`;
       const { data, error: insertError } = await supabase
         .from('bidders')
         .insert({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          is_anonymous: formData.is_anonymous,
+          name: name.trim(),
+          email: `${digits}@auction.local`, // placeholder email
+          phone: e164,
+          is_anonymous: isAnonymous,
         })
         .select('id')
         .single();
@@ -73,8 +117,8 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
 
       if (data) {
         localStorage.setItem('bidder_id', data.id);
-        localStorage.setItem('bidder_name', formData.name);
-        localStorage.setItem('bidder_anonymous', formData.is_anonymous ? '1' : '0');
+        localStorage.setItem('bidder_name', name.trim());
+        localStorage.setItem('bidder_anonymous', isAnonymous ? '1' : '0');
         onComplete(data.id);
       }
     } catch (err) {
@@ -82,33 +126,6 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
       setError('Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleReturningLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLookingUp(true);
-    try {
-      const { data } = await supabase
-        .from('bidders')
-        .select('id, name')
-        .eq('email', returningEmail.toLowerCase().trim())
-        .single();
-
-      if (data) {
-        localStorage.setItem('bidder_id', data.id);
-        localStorage.setItem('bidder_name', data.name);
-        onComplete(data.id);
-      } else {
-        setError("We couldn't find that email. Please register below.");
-        setShowReturning(false);
-      }
-    } catch {
-      setError("We couldn't find that email. Please register below.");
-      setShowReturning(false);
-    } finally {
-      setLookingUp(false);
     }
   };
 
@@ -120,7 +137,7 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
         transition={{ duration: 0.5, type: 'spring' }}
         className="w-full max-w-md"
       >
-        {/* Hero section */}
+        {/* Hero */}
         <div className="text-center mb-8">
           <motion.div
             initial={{ scale: 0 }}
@@ -145,14 +162,15 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
               <Sparkles className="w-8 h-8 text-yellow-400 drop-shadow-lg" />
             </motion.div>
           </motion.div>
-
           <motion.h2
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="font-heading text-3xl font-bold text-white mb-3 drop-shadow-lg"
           >
-            Welcome to the Auction!
+            {step === 'phone' && 'Welcome to the Auction!'}
+            {step === 'otp' && 'Check Your Texts!'}
+            {step === 'name' && 'One More Thing...'}
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 10 }}
@@ -160,231 +178,252 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
             transition={{ delay: 0.4 }}
             className="text-white/80 text-lg"
           >
-            Bid from anywhere — in person or online! {theme.emoji}
+            {step === 'phone' && `Bid from anywhere! ${theme.emoji}`}
+            {step === 'otp' && `We sent a code to ${phone}`}
+            {step === 'name' && 'What should we call you?'}
           </motion.p>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="flex items-center justify-center gap-1.5 mt-2 text-white/60 text-sm"
-          >
-            <Globe className="w-3.5 h-3.5" />
-            Works on any device, anywhere
-          </motion.div>
+          {step === 'phone' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="flex items-center justify-center gap-1.5 mt-2 text-white/60 text-sm"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              Works on any device, anywhere
+            </motion.div>
+          )}
         </div>
 
-        {/* Returning bidder shortcut */}
-        {showReturning ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-3xl p-8 shadow-2xl mb-4"
-          >
-            <h3 className="font-heading text-lg font-bold text-gray-800 mb-4">Welcome back!</h3>
-            <form onSubmit={handleReturningLookup} className="space-y-4">
-              <input
-                type="email"
-                value={returningEmail}
-                onChange={(e) => setReturningEmail(e.target.value)}
-                placeholder="Your email address"
-                className="input w-full py-3 text-lg"
-                required
-              />
-              {error && (
-                <p className="text-red-500 text-sm">{error}</p>
-              )}
-              <button
-                type="submit"
-                disabled={lookingUp}
-                className="w-full py-3 text-white font-semibold rounded-xl"
-                style={{
-                  background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
-                }}
-              >
-                {lookingUp ? 'Looking up...' : 'Find My Account'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowReturning(false)}
-                className="w-full py-2 text-gray-500 text-sm hover:text-gray-700"
-              >
-                ← Register instead
-              </button>
-            </form>
-          </motion.div>
-        ) : (
-          /* Main registration form */
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="glass rounded-3xl p-8 shadow-2xl"
-          >
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Name */}
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center gap-3 group">
-                  <div
-                    className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)` }}
-                  >
-                    <User className="w-5 h-5 text-white" />
+        <AnimatePresence mode="wait">
+          {/* Step 1: Phone */}
+          {step === 'phone' && (
+            <motion.div
+              key="phone"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="glass rounded-3xl p-8 shadow-2xl"
+            >
+              <form onSubmit={handleSendCode} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                      style={{ background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)` }}
+                    >
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhone(e.target.value))}
+                      placeholder="(555) 123-4567"
+                      className="input flex-1 py-4 text-lg"
+                      required
+                      autoFocus
+                    />
                   </div>
+                  <p className="text-xs text-gray-400 mt-2 ml-1">We&apos;ll text you a code to verify — no app needed.</p>
+                </div>
+
+                {error && (
+                  <p className="text-red-500 text-sm bg-red-50 rounded-xl p-3 text-center">{error}</p>
+                )}
+
+                <motion.button
+                  type="submit"
+                  disabled={isSubmitting}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full flex items-center justify-center gap-3 text-lg py-4 text-white font-semibold rounded-xl"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                    boxShadow: `0 4px 20px ${theme.primary}50`,
+                  }}
+                >
+                  {isSubmitting ? (
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                      <Sparkles className="w-6 h-6" />
+                    </motion.div>
+                  ) : (
+                    <>
+                      <MessageSquare className="w-5 h-5" />
+                      Send My Code
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+            </motion.div>
+          )}
+
+          {/* Step 2: OTP */}
+          {step === 'otp' && (
+            <motion.div
+              key="otp"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="glass rounded-3xl p-8 shadow-2xl"
+            >
+              <form onSubmit={handleVerifyCode} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    6-Digit Code <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="John Smith"
-                    className="input flex-1 py-4 text-lg"
+                    inputMode="numeric"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="input w-full py-5 text-3xl text-center tracking-widest font-bold"
+                    maxLength={6}
+                    autoFocus
                     required
                   />
                 </div>
-              </motion.div>
 
-              {/* Email */}
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.7 }}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center gap-3 group">
-                  <div
-                    className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)` }}
-                  >
-                    <Mail className="w-5 h-5 text-white" />
-                  </div>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="john@email.com"
-                    className="input flex-1 py-4 text-lg"
-                    required
-                  />
-                </div>
-              </motion.div>
+                {error && (
+                  <p className="text-red-500 text-sm bg-red-50 rounded-xl p-3 text-center">{error}</p>
+                )}
 
-              {/* Phone */}
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.8 }}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone <span className="text-red-500">*</span>
-                </label>
-                <div className="flex items-center gap-3 group">
-                  <div
-                    className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)` }}
-                  >
-                    <Phone className="w-5 h-5 text-white" />
-                  </div>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
-                    placeholder="(555) 123-4567"
-                    className="input flex-1 py-4 text-lg"
-                    required
-                  />
-                </div>
-              </motion.div>
+                <motion.button
+                  type="submit"
+                  disabled={isSubmitting || otpCode.length !== 6}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full flex items-center justify-center gap-3 text-lg py-4 text-white font-semibold rounded-xl disabled:opacity-50"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                    boxShadow: `0 4px 20px ${theme.primary}50`,
+                  }}
+                >
+                  {isSubmitting ? (
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                      <Sparkles className="w-6 h-6" />
+                    </motion.div>
+                  ) : (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Verify Code
+                    </>
+                  )}
+                </motion.button>
 
-              {/* Anonymous toggle */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.9 }}
-                className="flex items-start gap-3 bg-gray-50 rounded-xl p-4"
-              >
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, is_anonymous: !formData.is_anonymous })}
-                  className={`flex-shrink-0 w-10 h-6 rounded-full transition-colors mt-0.5 ${
-                    formData.is_anonymous ? '' : 'bg-gray-200'
-                  }`}
-                  style={formData.is_anonymous ? { background: theme.primary } : {}}
+                  onClick={() => { setStep('phone'); setOtpCode(''); setError(''); }}
+                  className="w-full py-2 text-gray-400 text-sm hover:text-gray-600"
                 >
-                  <motion.div
-                    animate={{ x: formData.is_anonymous ? 16 : 2 }}
-                    className="w-5 h-5 bg-white rounded-full shadow"
-                  />
+                  ← Use a different number
                 </button>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    {formData.is_anonymous ? (
-                      <EyeOff className="w-4 h-4 text-gray-500" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-500" />
-                    )}
-                    <span className="text-sm font-semibold text-gray-700">
-                      Bid Anonymously
-                    </span>
+              </form>
+            </motion.div>
+          )}
+
+          {/* Step 3: Name */}
+          {step === 'name' && (
+            <motion.div
+              key="name"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="glass rounded-3xl p-8 shadow-2xl"
+            >
+              <form onSubmit={handleRegister} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Your Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                      style={{ background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)` }}
+                    >
+                      <User className="w-5 h-5 text-white" />
+                    </div>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="John Smith"
+                      className="input flex-1 py-4 text-lg"
+                      required
+                      autoFocus
+                    />
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Other bidders will see &quot;Anonymous&quot; instead of your name. Admins can always see who you are.
-                  </p>
                 </div>
-              </motion.div>
 
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 text-center"
+                {/* Anonymous toggle */}
+                <div
+                  className="flex items-start gap-3 bg-gray-50 rounded-xl p-4 cursor-pointer"
+                  onClick={() => setIsAnonymous(!isAnonymous)}
                 >
-                  {error}
-                </motion.div>
-              )}
-
-              <motion.button
-                type="submit"
-                disabled={isSubmitting}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.0 }}
-                className="w-full flex items-center justify-center gap-3 text-lg py-4 mt-2 text-white font-semibold rounded-xl transition-all"
-                style={{
-                  background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
-                  boxShadow: `0 4px 20px ${theme.primary}50`,
-                }}
-              >
-                {isSubmitting ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  <button
+                    type="button"
+                    className={`flex-shrink-0 w-10 h-6 rounded-full transition-colors mt-0.5`}
+                    style={{ background: isAnonymous ? theme.primary : '#D1D5DB' }}
                   >
-                    <Sparkles className="w-6 h-6" />
-                  </motion.div>
-                ) : (
-                  <>
-                    Let&apos;s Go!
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </motion.button>
-            </form>
-          </motion.div>
-        )}
+                    <motion.div
+                      animate={{ x: isAnonymous ? 16 : 2 }}
+                      className="w-5 h-5 bg-white rounded-full shadow"
+                    />
+                  </button>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {isAnonymous ? <EyeOff className="w-4 h-4 text-gray-500" /> : <Eye className="w-4 h-4 text-gray-500" />}
+                      <span className="text-sm font-semibold text-gray-700">Bid Anonymously</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Other bidders see &quot;Anonymous&quot; — admins always know who you are.
+                    </p>
+                  </div>
+                </div>
 
-        <motion.div
+                {error && (
+                  <p className="text-red-500 text-sm bg-red-50 rounded-xl p-3 text-center">{error}</p>
+                )}
+
+                <motion.button
+                  type="submit"
+                  disabled={isSubmitting}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full flex items-center justify-center gap-3 text-lg py-4 text-white font-semibold rounded-xl"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                    boxShadow: `0 4px 20px ${theme.primary}50`,
+                  }}
+                >
+                  {isSubmitting ? (
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                      <Sparkles className="w-6 h-6" />
+                    </motion.div>
+                  ) : (
+                    <>
+                      Let&apos;s Go!
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.1 }}
-          className="text-center mt-4 space-y-1"
+          transition={{ delay: 1 }}
+          className="text-white/50 text-xs text-center mt-6"
         >
-          {!showReturning && (
-            <button
-              onClick={() => setShowReturning(true)}
-              className="text-white/70 text-sm hover:text-white underline underline-offset-2"
-            >
-              Returning bidder? Click here
-            </button>
-          )}
-          <p className="text-white/50 text-xs">Your info is only used for auction purposes ❤️</p>
-        </motion.div>
+          Your info is only used for auction purposes ❤️
+        </motion.p>
       </motion.div>
     </div>
   );

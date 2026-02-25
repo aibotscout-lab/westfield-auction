@@ -415,24 +415,24 @@ function AuctionApp() {
               {/* Search and filters */}
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 {/* Search */}
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="flex items-center gap-2 flex-1 bg-white/90 rounded-xl border-2 border-gray-200 px-4 focus-within:border-indigo-400 transition-colors">
+                  <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search items..."
-                    className="input pl-12 bg-white/90"
+                    className="flex-1 py-3.5 bg-transparent outline-none text-gray-700 placeholder-gray-400"
                   />
                 </div>
 
                 {/* Category filter */}
-                <div className="relative">
-                  <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="flex items-center gap-2 bg-white/90 rounded-xl border-2 border-gray-200 px-4 min-w-[180px] focus-within:border-indigo-400 transition-colors">
+                  <Filter className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   <select
                     value={selectedCategory || ''}
                     onChange={(e) => setSelectedCategory(e.target.value || null)}
-                    className="input pl-12 pr-8 appearance-none bg-white/90 min-w-[180px]"
+                    className="flex-1 py-3.5 bg-transparent outline-none appearance-none text-gray-700 cursor-pointer"
                   >
                     <option value="">All Categories</option>
                     {categories.map((category) => (

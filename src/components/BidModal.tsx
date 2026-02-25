@@ -28,6 +28,8 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
 
   const increment = item.bid_increment ?? 1;
   const minBid = item.current_bid + increment;
+  const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('bidder_id') : null;
+  const isAlreadyWinning = !!(currentUserId && item.current_bidder_id === currentUserId);
 
   useEffect(() => {
     if (isOpen) {
@@ -120,6 +122,19 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
 
       if (bidError) throw bidError;
 
+      // Get previous leader's phone before updating item
+      let previousLeaderPhone: string | null = null;
+      let previousLeaderName: string | null = null;
+      if (item.current_bidder_id && item.current_bidder_id !== bidderId) {
+        const { data: prevBidder } = await supabase
+          .from('bidders')
+          .select('phone, name')
+          .eq('id', item.current_bidder_id)
+          .single();
+        previousLeaderPhone = prevBidder?.phone ?? null;
+        previousLeaderName = prevBidder?.name ?? null;
+      }
+
       const { error: updateError } = await supabase
         .from('items')
         .update({
@@ -129,6 +144,21 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
         .eq('id', item.id);
 
       if (updateError) throw updateError;
+
+      // Notify previous leader they've been outbid
+      if (previousLeaderPhone) {
+        fetch('/api/notify-outbid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bidderPhone: previousLeaderPhone,
+            bidderName: previousLeaderName,
+            itemTitle: item.title,
+            newBid: amount,
+            auctionUrl: window.location.origin,
+          }),
+        }).catch(() => {}); // Fire and forget — don't block UI
+      }
 
       setSuccess(true);
       setShowConfetti(true);
@@ -211,6 +241,21 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                   </span>
                 )}
               </div>
+
+              {/* Already winning warning */}
+              {isAlreadyWinning && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5"
+                >
+                  <span className="text-xl">🏆</span>
+                  <div>
+                    <p className="text-amber-800 font-semibold text-sm">You&apos;re already winning this!</p>
+                    <p className="text-amber-600 text-xs">Bidding again will raise your own price. Are you sure?</p>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Content */}
