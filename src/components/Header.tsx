@@ -1,8 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Gavel, Sparkles } from 'lucide-react';
+import { Gavel, Sparkles, CheckCircle, Clock } from 'lucide-react';
 import { useTheme } from '@/lib/ThemeContext';
+import { useAuction } from '@/lib/AuctionContext';
 import CountdownTimer from './CountdownTimer';
 
 interface HeaderProps {
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export default function Header({ endTime, isActive }: HeaderProps) {
   const { theme } = useTheme();
+  const { biddingStatus, timeUntilStart } = useAuction();
 
   return (
     <motion.header 
@@ -63,7 +65,33 @@ export default function Header({ endTime, isActive }: HeaderProps) {
 
           {/* Countdown */}
           {isActive && (
-            <CountdownTimer endTime={endTime} />
+            biddingStatus === 'ended' ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-2xl shadow-lg"
+              >
+                <CheckCircle className="w-5 h-5" />
+                <span className="font-semibold">Auction Ended</span>
+              </motion.div>
+            ) : biddingStatus === 'not-started' ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white px-4 py-2 rounded-2xl shadow-lg"
+              >
+                <Clock className="w-5 h-5" />
+                <div className="flex flex-col">
+                  <span className="text-xs opacity-90">Bidding opens in</span>
+                  <span className="font-bold">
+                    {timeUntilStart.hours > 0 && `${timeUntilStart.hours}h `}
+                    {timeUntilStart.minutes}m {timeUntilStart.seconds}s
+                  </span>
+                </div>
+              </motion.div>
+            ) : (
+              <CountdownTimer endTime={endTime} />
+            )
           )}
         </div>
       </div>

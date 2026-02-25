@@ -11,7 +11,12 @@ export interface Database {
           current_bid: number;
           current_bidder_id: string | null;
           donor_name: string | null;
+          donor_phone: string | null;
+          donor_email: string | null;
           category: string | null;
+          estimated_value: number | null;
+          bid_increment: number;
+          auction_wave: number;
           created_at: string;
           updated_at: string;
         };
@@ -24,7 +29,12 @@ export interface Database {
           current_bid?: number;
           current_bidder_id?: string | null;
           donor_name?: string | null;
+          donor_phone?: string | null;
+          donor_email?: string | null;
           category?: string | null;
+          estimated_value?: number | null;
+          bid_increment?: number;
+          auction_wave?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -37,7 +47,12 @@ export interface Database {
           current_bid?: number;
           current_bidder_id?: string | null;
           donor_name?: string | null;
+          donor_phone?: string | null;
+          donor_email?: string | null;
           category?: string | null;
+          estimated_value?: number | null;
+          bid_increment?: number;
+          auction_wave?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -48,6 +63,7 @@ export interface Database {
           name: string;
           email: string;
           phone: string;
+          is_anonymous: boolean;
           created_at: string;
         };
         Insert: {
@@ -55,6 +71,7 @@ export interface Database {
           name: string;
           email: string;
           phone: string;
+          is_anonymous?: boolean;
           created_at?: string;
         };
         Update: {
@@ -62,6 +79,7 @@ export interface Database {
           name?: string;
           email?: string;
           phone?: string;
+          is_anonymous?: boolean;
           created_at?: string;
         };
       };
@@ -93,25 +111,34 @@ export interface Database {
           id: string;
           start_time: string;
           end_time: string;
+          end_time_wave2: string | null;
           is_active: boolean;
           title: string;
           description: string | null;
+          disclaimer_text: string | null;
+          qr_code_url: string | null;
         };
         Insert: {
           id?: string;
           start_time: string;
           end_time: string;
+          end_time_wave2?: string | null;
           is_active?: boolean;
           title?: string;
           description?: string | null;
+          disclaimer_text?: string | null;
+          qr_code_url?: string | null;
         };
         Update: {
           id?: string;
           start_time?: string;
           end_time?: string;
+          end_time_wave2?: string | null;
           is_active?: boolean;
           title?: string;
           description?: string | null;
+          disclaimer_text?: string | null;
+          qr_code_url?: string | null;
         };
       };
     };

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, TrendingUp, Check, AlertCircle, Sparkles, Zap } from 'lucide-react';
+import { X, TrendingUp, Check, AlertCircle, Sparkles, Zap, Lock, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { ItemWithBidder } from '@/lib/database.types';
 import { useTheme } from '@/lib/ThemeContext';
+import { useAuction } from '@/lib/AuctionContext';
 import { supabase } from '@/lib/supabase';
 import Confetti from './Confetti';
 
@@ -21,28 +22,73 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const { theme } = useTheme();
+  const { canBid, biddingStatus } = useAuction();
 
-  const minBid = item.current_bid + 1;
+  const increment = item.bid_increment ?? 1;
+  const minBid = item.current_bid + increment;
 
   useEffect(() => {
     if (isOpen) {
       setBidAmount(minBid.toString());
       setError('');
       setSuccess(false);
+      setShowConfirmation(false);
     }
   }, [isOpen, minBid]);
 
   const quickBids = [
-    { label: `+$1`, amount: item.current_bid + 1 },
-    { label: `+$5`, amount: item.current_bid + 5 },
-    { label: `+$10`, amount: item.current_bid + 10 },
-    { label: `+$25`, amount: item.current_bid + 25 },
+    { label: `+$${increment}`, amount: item.current_bid + increment },
+    { label: `+$${increment * 2}`, amount: item.current_bid + increment * 2 },
+    { label: `+$${increment * 5}`, amount: item.current_bid + increment * 5 },
+    { label: `+$${increment * 10}`, amount: item.current_bid + increment * 10 },
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // First step: validate and show confirmation
+  const handleShowConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Check if bidding is allowed
+    if (!canBid) {
+      if (biddingStatus === 'ended') {
+        setError('Sorry, the auction has ended. No more bids can be placed.');
+      } else {
+        setError('Bidding has not started yet. Please wait for the auction to begin.');
+      }
+      return;
+    }
+    
+    const amount = parseInt(bidAmount);
+    
+    if (isNaN(amount) || amount < minBid) {
+      setError(`Bid must be at least $${minBid} (increment: $${increment})`);
+      return;
+    }
+    if ((amount - item.current_bid) % increment !== 0) {
+      setError(`Bids must go up in increments of $${increment}`);
+      return;
+    }
+
+    // Show confirmation screen
+    setShowConfirmation(true);
+  };
+
+  // Second step: actually submit the bid
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setError('');
+
+    // Check if bidding is allowed
+    if (!canBid) {
+      if (biddingStatus === 'ended') {
+        setError('Sorry, the auction has ended. No more bids can be placed.');
+      } else {
+        setError('Bidding has not started yet. Please wait for the auction to begin.');
+      }
+      return;
+    }
     
     const amount = parseInt(bidAmount);
     
@@ -52,6 +98,8 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
     }
 
     setIsSubmitting(true);
+    // Notify previous leader they've been outbid (stored in localStorage for polling)
+    localStorage.setItem('last_bid_timestamp', new Date().toISOString());
 
     try {
       const bidderId = localStorage.getItem('bidder_id');
@@ -166,7 +214,7 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
             </div>
 
             {/* Content */}
-            <form onSubmit={handleSubmit} className="p-6 pt-2">
+            <div className="p-6 pt-2">
               {success ? (
                 <motion.div
                   initial={{ scale: 0 }}
@@ -208,8 +256,93 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                     </span>
                   </motion.p>
                 </motion.div>
+              ) : showConfirmation ? (
+                // Confirmation step
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="py-4"
+                >
+                  <div className="text-center mb-6">
+                    <div 
+                      className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+                      style={{ 
+                        background: `linear-gradient(135deg, ${theme.gradientStart}20 0%, ${theme.gradientEnd}20 100%)`,
+                      }}
+                    >
+                      <AlertTriangle className="w-8 h-8" style={{ color: theme.primary }} />
+                    </div>
+                    <h3 className="font-heading text-xl font-bold text-gray-800 mb-2">
+                      Confirm Your Bid
+                    </h3>
+                    <p className="text-gray-600">
+                      You are about to bid{' '}
+                      <span 
+                        className="font-bold text-2xl"
+                        style={{ color: theme.primary }}
+                      >
+                        ${bidAmount}
+                      </span>
+                    </p>
+                    <p className="text-gray-500 text-sm mt-1">
+                      on &quot;{item.title}&quot;
+                    </p>
+                  </div>
+
+                  {/* Error message */}
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2 text-red-500 text-sm mb-4 p-4 bg-red-50 rounded-xl border border-red-100"
+                    >
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                      {error}
+                    </motion.div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <motion.button
+                      type="button"
+                      onClick={() => setShowConfirmation(false)}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 flex items-center justify-center gap-2 py-4 text-gray-600 font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                      Go Back
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={handleSubmit}
+                      disabled={isSubmitting}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 flex items-center justify-center gap-2 py-4 text-white font-semibold rounded-xl transition-all"
+                      style={{ 
+                        background: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 100%)`,
+                        boxShadow: `0 4px 20px ${theme.primary}50`
+                      }}
+                    >
+                      {isSubmitting ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Sparkles className="w-6 h-6" />
+                        </motion.div>
+                      ) : (
+                        <>
+                          <Check className="w-5 h-5" />
+                          Confirm Bid
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
+                </motion.div>
               ) : (
-                <>
+                // Bid entry step
+                <form onSubmit={handleShowConfirmation}>
                   {/* Quick bid buttons */}
                   <div className="grid grid-cols-4 gap-2 mb-5">
                     {quickBids.map((qb, index) => {
@@ -262,6 +395,9 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
 
                   <p className="text-sm text-gray-400 text-center mb-4">
                     Minimum bid: <span className="font-semibold text-gray-600">${minBid}</span>
+                    {increment > 1 && (
+                      <span className="ml-2 text-xs text-gray-400">(${increment} increments)</span>
+                    )}
                   </p>
 
                   {/* Error message */}
@@ -279,7 +415,6 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                   {/* Submit button */}
                   <motion.button
                     type="submit"
-                    disabled={isSubmitting}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="w-full flex items-center justify-center gap-3 text-lg py-4 text-white font-semibold rounded-xl transition-all"
@@ -288,24 +423,13 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
                       boxShadow: `0 4px 20px ${theme.primary}50`
                     }}
                   >
-                    {isSubmitting ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      >
-                        <Sparkles className="w-6 h-6" />
-                      </motion.div>
-                    ) : (
-                      <>
-                        <Zap className="w-5 h-5" />
-                        Place Bid
-                        <TrendingUp className="w-5 h-5" />
-                      </>
-                    )}
+                    <Zap className="w-5 h-5" />
+                    Place Bid
+                    <TrendingUp className="w-5 h-5" />
                   </motion.button>
-                </>
+                </form>
               )}
-            </form>
+            </div>
           </motion.div>
         </>
       )}

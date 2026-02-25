@@ -6,7 +6,7 @@ export const AUCTION_CONFIG = {
   tagline: "Supporting Our Community",
   // Set these before the event
   startTime: new Date("2026-03-01T18:00:00-07:00"),
-  endTime: new Date("2026-03-01T21:00:00-07:00"),
+  endTime: new Date("2026-03-25T20:30:00-07:00"), // March 25, 2026 at 8:30 PM MST
 };
 
 export const COLORS = {
