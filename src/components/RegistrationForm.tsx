@@ -21,6 +21,7 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [existingBidderId, setExistingBidderId] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const { theme } = useTheme();
 
   const formatPhone = (value: string) => {
@@ -49,10 +50,38 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send code');
       setStep('otp');
+      startResendCooldown();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send code');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const startResendCooldown = () => {
+    setResendCooldown(30);
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleResendCode = async () => {
+    setError('');
+    setResendCooldown(30);
+    startResendCooldown();
+    try {
+      const res = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to resend code');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend code');
     }
   };
 
@@ -315,13 +344,24 @@ export default function RegistrationForm({ onComplete }: RegistrationFormProps) 
                   )}
                 </motion.button>
 
-                <button
-                  type="button"
-                  onClick={() => { setStep('phone'); setOtpCode(''); setError(''); }}
-                  className="w-full py-2 text-gray-400 text-sm hover:text-gray-600"
-                >
-                  ← Use a different number
-                </button>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => { setStep('phone'); setOtpCode(''); setError(''); setResendCooldown(0); }}
+                    className="py-2 text-gray-400 text-sm hover:text-gray-600"
+                  >
+                    ← Different number
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    disabled={resendCooldown > 0}
+                    className="py-2 text-sm font-medium disabled:text-gray-300"
+                    style={{ color: resendCooldown > 0 ? undefined : theme.primary }}
+                  >
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                  </button>
+                </div>
               </form>
             </motion.div>
           )}
