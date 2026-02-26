@@ -64,6 +64,7 @@ export interface Database {
           email: string;
           phone: string;
           is_anonymous: boolean;
+    notify_outbid: boolean;
           created_at: string;
         };
         Insert: {

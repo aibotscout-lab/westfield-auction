@@ -122,17 +122,19 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
 
       if (bidError) throw bidError;
 
-      // Get previous leader's phone before updating item
+      // Get previous leader's phone + notification preference before updating item
       let previousLeaderPhone: string | null = null;
       let previousLeaderName: string | null = null;
+      let previousLeaderWantsNotify = false;
       if (item.current_bidder_id && item.current_bidder_id !== bidderId) {
         const { data: prevBidder } = await supabase
           .from('bidders')
-          .select('phone, name')
+          .select('phone, name, notify_outbid')
           .eq('id', item.current_bidder_id)
           .single();
         previousLeaderPhone = prevBidder?.phone ?? null;
         previousLeaderName = prevBidder?.name ?? null;
+        previousLeaderWantsNotify = prevBidder?.notify_outbid ?? false;
       }
 
       const { error: updateError } = await supabase
@@ -145,8 +147,8 @@ export default function BidModal({ item, isOpen, onClose, onBidPlaced }: BidModa
 
       if (updateError) throw updateError;
 
-      // Notify previous leader they've been outbid
-      if (previousLeaderPhone) {
+      // Notify previous leader they've been outbid (only if they opted in)
+      if (previousLeaderPhone && previousLeaderWantsNotify) {
         fetch('/api/notify-outbid', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

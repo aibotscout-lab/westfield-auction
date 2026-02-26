@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, Loader2, Trophy, LayoutGrid, List } from 'lucide-react';
+import { Search, Filter, Loader2, Trophy, LayoutGrid, List, Bell, BellOff } from 'lucide-react';
 import Header from '@/components/Header';
 import ItemCard from '@/components/ItemCard';
 import RegistrationForm from '@/components/RegistrationForm';
@@ -181,6 +181,8 @@ function AuctionApp() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedBidItem, setSelectedBidItem] = useState<ItemWithBidder | null>(null);
   const [outbidCount, setOutbidCount] = useState(0);
+  const [notifyOutbid, setNotifyOutbid] = useState(false);
+  const [togglingNotify, setTogglingNotify] = useState(false);
 
   // Check for existing registration
   useEffect(() => {
@@ -192,6 +194,36 @@ function AuctionApp() {
       setIsRegistered(true);
     }
   }, []);
+
+  // Load outbid notification preference
+  useEffect(() => {
+    if (!bidderId || !isSupabaseConfigured()) return;
+    supabase
+      .from('bidders')
+      .select('notify_outbid')
+      .eq('id', bidderId)
+      .single()
+      .then(({ data }) => {
+        if (data) setNotifyOutbid(data.notify_outbid ?? false);
+      });
+  }, [bidderId]);
+
+  const toggleNotifyOutbid = async () => {
+    if (!bidderId || togglingNotify) return;
+    setTogglingNotify(true);
+    const newValue = !notifyOutbid;
+    setNotifyOutbid(newValue);
+    try {
+      await supabase
+        .from('bidders')
+        .update({ notify_outbid: newValue })
+        .eq('id', bidderId);
+    } catch {
+      setNotifyOutbid(!newValue); // revert on error
+    } finally {
+      setTogglingNotify(false);
+    }
+  };
 
   // Fetch items
   const fetchItems = useCallback(async () => {
@@ -389,27 +421,55 @@ function AuctionApp() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass rounded-xl p-4 mb-6 flex items-center justify-between"
+                className="glass rounded-xl p-4 mb-6"
               >
-                <div>
-                  <p className="text-gray-600">
-                    Welcome back, <span className="font-semibold text-gray-800">{bidderName || 'Bidder'}</span>! 👋
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600">
+                      Welcome back, <span className="font-semibold text-gray-800">{bidderName || 'Bidder'}</span>! 👋
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowMyBids(true)}
+                    className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white px-4 py-2 rounded-xl font-semibold shadow-lg shadow-orange-500/30"
+                  >
+                    <Trophy className="w-4 h-4" />
+                    My Bids
+                    {winningCount > 0 && (
+                      <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                        {winningCount}
+                      </span>
+                    )}
+                  </motion.button>
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowMyBids(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white px-4 py-2 rounded-xl font-semibold shadow-lg shadow-orange-500/30"
+                {/* Outbid notification toggle */}
+                <div
+                  className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-200/50 cursor-pointer select-none"
+                  onClick={toggleNotifyOutbid}
                 >
-                  <Trophy className="w-4 h-4" />
-                  My Bids
-                  {winningCount > 0 && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
-                      {winningCount}
+                  <button
+                    type="button"
+                    className="flex-shrink-0 w-10 h-6 rounded-full transition-colors relative"
+                    style={{ background: notifyOutbid ? '#22c55e' : '#D1D5DB' }}
+                  >
+                    <motion.div
+                      animate={{ x: notifyOutbid ? 16 : 2 }}
+                      className="w-5 h-5 bg-white rounded-full shadow absolute top-0.5"
+                    />
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {notifyOutbid ? (
+                      <Bell className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <BellOff className="w-4 h-4 text-gray-400" />
+                    )}
+                    <span className={`text-sm ${notifyOutbid ? 'text-green-700 font-medium' : 'text-gray-500'}`}>
+                      {notifyOutbid ? 'You\'ll get a text if outbid' : 'Text me if I\'m outbid'}
                     </span>
-                  )}
-                </motion.button>
+                  </div>
+                </div>
               </motion.div>
 
               {/* Search and filters */}
